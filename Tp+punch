@@ -1,0 +1,171 @@
+-- Definición de servicios indispensables para evitar crasheos en celular
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local RunService = game:GetService("RunService")
+
+-- TABLA DE LA BLACKLIST: Agrega aquí los nombres de usuario exactos (Name) de tus rivales
+local Blacklist = {
+    "NombreDeUsuarioMolesto1",
+    "JugadorToxico2",
+    "BountyHunter3"
+}
+
+-- Variables globales de control para los bucles
+_G.fastHitActive = false
+local following = false
+local followTargetName = nil
+
+-- Función auxiliar para verificar si un usuario específico está en la lista negra
+local function estaEnBlacklist(player)
+    for _, name in pairs(Blacklist) do
+        if player.Name:lower() == name:lower() or player.DisplayName:lower() == name:lower() then
+            return true
+        end
+    end
+    return false
+end
+
+-- Función de teletransporte constante (Bucle por detrás del juego)
+local function iniciarSeguimiento(targetPlayer)
+    if not targetPlayer then return end
+    followTargetName = targetPlayer.Name
+    following = true
+    
+    -- Activamos los puños de forma forzada para el ataque sorpresa
+    _G.fastHitActive = true
+    
+    -- Bucle super veloz de teletransporte pegado al enemigo (detrás de su espalda)
+    task.spawn(function()
+        while following and targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") do
+            local enemyHRP = targetPlayer.Character.HumanoidRootPart
+            local myChar = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+            local myHRP = myChar:WaitForChild("HumanoidRootPart", 3)
+            
+            if myHRP then
+                -- Te coloca 2 studs atrás de él para que tus puños lo alcancen pero él no te vea venir
+                myHRP.CFrame = enemyHRP.CFrame * CFrame.new(0, 0, 2)
+            end
+            RunService.Heartbeat:Wait() -- Sincronización nativa con la física del juego para evitar bugs
+        end
+        following = false
+        followTargetName = nil
+    end)
+    
+    -- Hilo 1 del Auto Punch: Equipamiento del arma y reseteo de tiempo de ataque
+    task.spawn(function()
+        while _G.fastHitActive do
+            local punch = LocalPlayer.Backpack:FindFirstChild("Punch")
+            if punch then
+                punch.Parent = LocalPlayer.Character
+                if punch:FindFirstChild("attackTime") then
+                    punch.attackTime.Value = 0
+                end
+            end
+            task.wait(0.1)
+        end
+    end)
+    
+    -- Hilo 2 del Auto Punch: Activación repetida de golpes en el servidor
+    task.spawn(function()
+        while _G.fastHitActive do
+            local punch = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Punch")
+            if punch then
+                punch:Activate()
+            end
+            task.wait(0.1)
+        end
+    end)
+end
+
+-- Escáner de seguridad para procesar ingresos de usuarios
+local function procesarFiltroJugador(player)
+    if player == LocalPlayer then return end
+    
+    -- Si es de la blacklist, ejecutamos la orden de eliminación inmediata
+    if estaEnBlacklist(player) then
+        game:GetService("StarterGui"):SetCore("ChatMakeSystemMessage", {
+            Text = "[SISTEMA] ¡Enemigo de Blacklist ("..player.DisplayName..") localizado! Iniciando caza automática...",
+            Color = Color3.fromRGB(255, 0, 0),
+            Font = Enum.Font.SourceSansBold
+        })
+        iniciarSeguimiento(player)
+    end
+end
+
+-- Conexión de los eventos de entrada al servidor
+for _, p in pairs(Players:GetPlayers()) do procesarFiltroJugador(p) end
+Players.PlayerAdded:Connect(procesarFiltroJugador)
+
+-- Manejo en caso de que el jugador cazado se rinda o se salga del servidor
+Players.PlayerRemoving:Connect(function(player)
+    if followTargetName == player.Name then
+        following = false
+        _G.fastHitActive = false
+        followTargetName = nil
+        -- Guarda el puño de vuelta en la mochila de forma ordenada
+        local punch = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Punch")
+        if punch then punch.Parent = LocalPlayer.Backpack end
+    end
+end)
+
+
+-- INTERFAZ GRÁFICA UNIFICADA (Aquí encajan tus componentes visuales)
+
+-- 1. El Interruptor Manual de Auto Punch
+Killer:AddSwitch("Auto Punch", function(state)
+    _G.fastHitActive = state
+    if state then
+        task.spawn(function()
+            while _G.fastHitActive do
+                local punch = LocalPlayer.Backpack:FindFirstChild("Punch")
+                if punch then
+                    punch.Parent = LocalPlayer.Character
+                    if punch:FindFirstChild("attackTime") then punch.attackTime.Value = 0 end
+                end
+                task.wait(0.1)
+            end
+        end)
+        task.spawn(function()
+            while _G.fastHitActive do
+                local punch = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Punch")
+                if punch then punch:Activate() end
+                task.wait(0.1)
+            end
+        end)
+    else
+        local punch = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Punch")
+        if punch then punch.Parent = LocalPlayer.Backpack end
+    end
+end)
+
+-- 2. Tu menú desplegable modificado y corregido para TP manual
+local followDropdown = Killer:AddDropdown("Teleport player", function(selectedDisplayName)
+    if selectedDisplayName and selectedDisplayName ~= "" then
+        local target = nil
+        for _, plr in ipairs(Players:GetPlayers()) do
+            if plr.DisplayName == selectedDisplayName then
+                target = plr
+                break
+            end
+        end
+
+        if target then
+            print("✅ Teletransportando y siguiendo a:", target.Name)
+            iniciarSeguimiento(target)
+        end
+    end
+end)
+
+-- Sistema dinámico para rellenar los nombres en tu Dropdown de la UI
+local function refrescarDropdown()
+    followDropdown:Clear()
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= LocalPlayer then
+            followDropdown:Add(plr.DisplayName)
+        end
+    end
+end
+
+refrescarDropdown()
+Players.PlayerAdded:Connect(refrescarDropdown)
+Players.PlayerRemoving:Connect(refrescarDropdown)
